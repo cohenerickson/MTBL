@@ -191,7 +191,6 @@ export class MTBLReader {
     envelope: Buffer,
     trailer: Trailer,
   ): Promise<IndexBlock> {
-    const { decompress } = await import("./compression.js");
     const { decodeVarint64, readU32LE: _readU32LE } = await import("./varint.js");
     let payloadLength: number;
     let headerLen: number;
@@ -205,11 +204,10 @@ export class MTBLReader {
     }
     const payloadStart = headerLen + 4 /* crc */;
     const payload = envelope.subarray(payloadStart, payloadStart + payloadLength);
-    const decompressed =
-      trailer.compressionAlgorithm === 0 /* NONE */
-        ? Buffer.from(payload)
-        : await decompress(trailer.compressionAlgorithm, payload);
-    return new IndexBlock(new Block(decompressed));
+    // The index block is always written uncompressed by the C library,
+    // regardless of the file's compression_algorithm. Only data blocks
+    // are compressed.
+    return new IndexBlock(new Block(Buffer.from(payload)));
   }
 
   /**

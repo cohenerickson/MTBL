@@ -238,12 +238,9 @@ export function writeMtblFile(
 
   const indexBlockOffset = cursor;
   const { payload: indexPayload } = buildBlock(indexEntries, restartInterval);
-  // mtbl always compresses the index with the file's compression algorithm.
-  let indexOnDisk = indexPayload;
-  if (compression === COMPRESSION_ZLIB) {
-    indexOnDisk = deflateSync(indexPayload);
-  }
-  const indexFramed = frameBlock(indexOnDisk);
+  // The C library always writes the index block uncompressed, regardless of
+  // the file's compression algorithm. Only data blocks are compressed.
+  const indexFramed = frameBlock(indexPayload);
   fileChunks.push(indexFramed);
   cursor += indexFramed.length;
 

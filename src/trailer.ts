@@ -24,8 +24,8 @@ import {
   METADATA_SIZE,
   MTBL_MAGIC_V1,
   MTBL_MAGIC_V2,
-} from "./constants";
-import { readU32LE, readU64LE } from "./varint";
+} from "./constants.js";
+import { readU32LE, readU64LE } from "./varint.js";
 
 export interface Trailer {
   version: FormatVersion;

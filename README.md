@@ -1,14 +1,20 @@
-# mtbl
+# MTBL
 
 Pure-TypeScript streaming reader for [mtbl](https://github.com/farsightsec/mtbl) (Sorted String Table) files. Memory-efficient enough for files in the hundreds of GB.
+
+> **Vibe-coded.** This library was drafted in a long AI-assisted session. The architecture is solid and the tests pass, but real-world edge cases may surface. Fresh eyes and contributions are very welcome — please open issues or PRs.
+
+## Requirements
+
+Node.js 18+. zstd compression requires Node 22.15+.
 
 ## Install
 
 ```bash
-npm install
-npm run build
-npm test
+npm install @cohenerickson/mtbl
 ```
+
+For lz4 or snappy compressed files, also install the relevant peer dep (see [Compression support](#compression-support)).
 
 ## Usage
 
@@ -21,16 +27,21 @@ await reader.ready;
 // Point lookup
 const value = await reader.get("some-key"); // Buffer | null
 
-// Bulk lookup (sorts internally for fast block reuse)
+// Check existence without fetching the value
+const exists = await reader.has("some-key"); // boolean
+
+// Bulk lookup (sorts keys internally for data block reuse)
 const map = await reader.getMany(["k1", "k2", "k3"]);
 
-// Iteration — streaming, memory stays flat regardless of file size
+// Iteration — one block in memory at a time regardless of file size
 for await (const { key, value } of reader.getPrefix("photos/2024/")) {
-  // ...
+  // key and value are Buffers, safe to retain across iterations
 }
 
 await reader.close();
 ```
+
+> **Warning:** Do not accumulate all entries into an array on large files. `Array.fromAsync(reader.iterate())` will OOM on any file that doesn't fit in memory. Consume the async iterator without buffering.
 
 ### Full API
 
@@ -38,8 +49,10 @@ await reader.close();
 class MTBLReader {
   constructor(path: string, options?: MTBLReaderOptions);
 
+  /** Resolves when the file is open and the index is loaded. */
   ready: Promise<void>;
 
+  /** File metadata from the on-disk trailer. */
   metadata(): Promise<MTBLMetadata>;
 
   // Point access
@@ -64,6 +77,40 @@ class MTBLReader {
 ```
 
 `KeyInput` is `Buffer | Uint8Array | string` (strings are UTF-8 encoded). All returned keys and values are `Buffer`.
+
+#### `IterateOptions`
+
+```ts
+interface IterateOptions {
+  /** Inclusive lower bound. Starts at the first key >= start. */
+  start?: KeyInput;
+  /** Exclusive upper bound. Stops before the first key >= end. */
+  end?: KeyInput;
+  /** Only yield entries whose key begins with this prefix. */
+  prefix?: KeyInput;
+}
+```
+
+If `prefix` is given alongside `start`/`end`, the bounds are intersected.
+
+#### `MTBLMetadata`
+
+```ts
+interface MTBLMetadata {
+  version: "v1" | "v2";
+  compression: "none" | "zlib" | "lz4" | "lz4hc" | "zstd" | "snappy";
+  compressionAlgorithm: number;
+  entryCount: number | bigint;
+  dataBlockCount: number | bigint;
+  bytesDataBlocks: number | bigint;  // compressed
+  bytesIndexBlock: number | bigint;
+  bytesKeys: number | bigint;        // uncompressed
+  bytesValues: number | bigint;      // uncompressed
+  fileSize: number;
+}
+```
+
+Values are `bigint` when they exceed `Number.MAX_SAFE_INTEGER`.
 
 ## Compression support
 
@@ -94,15 +141,15 @@ The reader is structured in layers:
 - `block.ts` — parses an individual decompressed block (the LevelDB-style prefix-compressed layout with restart-point binary search). This is the workhorse module.
 - `framed-block.ts` — reads a single block envelope from disk (`[varint length][u32 crc][payload]`), decompresses, and constructs a `Block`.
 - `index-block.ts` — special handling for the index block, which maps keys to data block offsets.
-- `reader.ts` — the public `MTBLReader` class. Pulls all the layers together and provides the user-facing API.
+- `reader.ts` — the public `MTBLReader` class. Pulls all the layers together.
 
 ### Memory model
 
-For a 448 GB file with default 8 KB data blocks, the file has roughly 56 million data blocks. The on-disk index block in a typical mtbl file is under 1% of file size (~1–4 GB for a 448 GB file).
+For a 500 GB file with default 8 KB data blocks, there are roughly 65 million data blocks. The on-disk index is typically under 1% of file size (~2.5–5 GB for a 500 GB file).
 
-The current implementation loads the full index block into memory at open time, then reads exactly one data block per `get()` call from disk. As long as iteration consumers process entries as they arrive (and don't `Array.from` an `AsyncGenerator`), per-operation memory stays flat: one ~8 KB compressed block + one decompressed block (~30–50 KB) at a time.
+The current implementation loads the full index block into memory at open time, then reads exactly one data block per `get()` call from disk. As long as iteration consumers process entries as they arrive, per-operation memory stays flat: one ~8 KB compressed block + one decompressed block (~30–50 KB) at a time.
 
-If the index itself is too large for memory, the next step is implementing a sparse or on-demand index in `index-block.ts` — only the `findBlockForKey` method would need to change; nothing else in the reader cares.
+If the index is too large for memory, the path forward is a sparse or on-demand index inside `index-block.ts` — only `findBlockForKey` would need to change.
 
 ## Format reference
 
@@ -114,3 +161,7 @@ The format is a LevelDB-derived SSTable:
 - Trailer points to an index block, which is a regular block whose values are varint64 offsets to data blocks.
 - Each block is framed on disk as `[varint64 length][u32 crc32c][payload]` (V2). V1 used a fixed u32 length instead of a varint.
 - Block payloads use LevelDB-style prefix-compressed entries (`[varint shared][varint non_shared][varint value_length][suffix][value]`) with a restart array at the end for binary search.
+
+## Contributing
+
+Issues and PRs are welcome. If you have a real mtbl file written by the reference C library (`mtbl_create` or similar), adding it as a test fixture would be particularly valuable — the test suite currently only exercises files written by the TypeScript fixture writer in `test/fixture.ts`.

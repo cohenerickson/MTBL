@@ -11,12 +11,12 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 
-import { MTBLReader } from "../src/index";
+import { MTBLReader } from "../src/index.js";
 import {
   COMPRESSION_NONE,
   COMPRESSION_ZLIB,
   writeMtblFile,
-} from "./fixture";
+} from "./fixture.js";
 
 let tmp: string;
 beforeEach(() => {

@@ -1,20 +1,41 @@
 {
-  "name": "mtbl",
+  "name": "@cohenerickson/mtbl",
   "version": "0.1.0",
   "description": "Pure-TS streaming reader for mtbl (Sorted String Table) files. Memory-efficient enough for files in the hundreds of GB.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cohenerickson/mtbl.git"
+  },
+  "homepage": "https://github.com/cohenerickson/mtbl#readme",
+  "bugs": {
+    "url": "https://github.com/cohenerickson/mtbl/issues"
+  },
   "type": "module",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
+  "files": [
+    "dist/src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "test": "tsc && node --test --import tsx test/reader.test.ts"
+    "test": "tsc && node --test --import tsx test/reader.test.ts",
+    "prepublishOnly": "npm run build"
   },
   "exports": {
     ".": {
       "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

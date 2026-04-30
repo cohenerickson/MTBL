@@ -16,27 +16,27 @@ The original C library is fine; we have our own implementation because we want a
 
 ## The motivating use case
 
-The user has a 448 GB mtbl file containing image data. They have a JSON manifest listing the keys they need. The dominant workflow is:
+The motivating use case is a large mtbl file (hundreds of GB) containing binary values keyed by a string identifier. A manifest lists the keys needed. The dominant workflow is:
 
 1. Open the mtbl file once
 2. Look up many keys via `get()` / `getMany()`
-3. Get back binary values (PNG/JPEG bytes)
+3. Get back binary values
 
 Iteration methods (`iterate`, `getPrefix`, `getRange`, `keys`, `values`) are secondary — useful for debugging and discovery rather than the primary workflow. Don't deprioritize them, but the perf focus should be point lookups.
 
 ## Memory model (read this before optimizing)
 
-For a 448 GB file with default 8 KB blocks, there are ~56 million data blocks. The on-disk index is typically 0.5%–1% of file size, so 1–4 GB.
+For a 500 GB file with default 8 KB blocks, there are ~65 million data blocks. The on-disk index is typically 0.5%–1% of file size, so 2.5–5 GB.
 
 **Current strategy:** Load the full index block into memory at open time. Read exactly one data block per `get()`. Iteration streams blocks one at a time and yields entries as they're decoded.
 
 **Per-operation memory:**
 
-- Open: ~1–4 GB resident for the full index of a 448 GB file
+- Open: ~2.5–5 GB resident for the full index of a 500 GB file
 - `get()`: one ~8 KB compressed block + one decompressed block (~30–50 KB)
 - Iteration: one block at a time, regardless of how many entries are scanned
 
-**The big lurking decision:** the user may not be willing to spend 1–4 GB on the index. Future work, in order of likely-need:
+**The big lurking decision:** the user may not be willing to spend 2.5–5 GB on the index. Future work, in order of likely-need:
 
 1. **Lazy decode of index entries.** Keep the raw index buffer in memory but don't materialize entries as JS objects. Use a `Uint32Array` of byte offsets and binary-search by decoding on demand. Cuts memory ~3–5x.
 2. **Sparse index.** Sample every Nth entry into memory, fetch the others from disk on demand. Cuts memory by N (typical N=64 → ~64x reduction).
@@ -44,7 +44,7 @@ For a 448 GB file with default 8 KB blocks, there are ~56 million data blocks. T
 
 These would all live behind a `MTBLReaderOptions.indexStrategy` field. The `IndexBlock` class is the only module that needs to change; the rest of the reader is agnostic.
 
-**Iteration is a footgun if consumers accumulate.** A naïve `Array.fromAsync(reader.iterate())` on a 448 GB file will OOM. The README warns about this; if we ever add convenience helpers (e.g. `toArray()`), they should reject or refuse to run on large files.
+**Iteration is a footgun if consumers accumulate.** A naïve `Array.fromAsync(reader.iterate())` on any file that doesn't fit in memory will OOM. The README warns about this; if we ever add convenience helpers (e.g. `toArray()`), they should reject or refuse to run on large files.
 
 ## API design decisions
 
@@ -110,6 +110,6 @@ If a real mtbl file fails to read, here's the order to suspect things:
 
 ## How this code was written
 
-Original architecture and code drafted in a long Claude conversation covering: format research, memory strategy, API design, then implementation. The format details came from reading the C source of [farsightsec/mtbl](https://github.com/farsightsec/mtbl) directly — specifically `reader.c`, `block.c`, `metadata.c`, `varint.c`, and `compression.c`. The design conversation included extensive discussion of the 448 GB use case which drove the memory-model decisions above.
+Original architecture and code drafted in a long Claude conversation covering: format research, memory strategy, API design, then implementation. The format details came from reading the C source of [farsightsec/mtbl](https://github.com/farsightsec/mtbl) directly — specifically `reader.c`, `block.c`, `metadata.c`, `varint.c`, and `compression.c`. The design conversation included extensive discussion of the large-file use case which drove the memory-model decisions above.
 
 The package was developed without being able to install npm dependencies in the dev sandbox, so the test suite hasn't been executed end-to-end. If you're reading this on first checkout: **run `npm install && npm test` before trusting any of it.** Failures are most likely in the block parser.

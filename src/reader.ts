@@ -21,14 +21,14 @@
  *     doesn't accumulate them, memory stays flat regardless of file size.
  */
 
-import { type CompressionId, type CompressionName, type FormatVersion } from "./constants";
-import { FileReader } from "./file-handle";
-import { IndexBlock } from "./index-block";
-import { METADATA_SIZE } from "./constants";
-import { parseTrailer, type Trailer } from "./trailer";
-import { readBlock } from "./framed-block";
-import { Block } from "./block";
-import { toSafeNumber } from "./varint";
+import { type CompressionId, type CompressionName, type FormatVersion } from "./constants.js";
+import { FileReader } from "./file-handle.js";
+import { IndexBlock } from "./index-block.js";
+import { METADATA_SIZE } from "./constants.js";
+import { parseTrailer, type Trailer } from "./trailer.js";
+import { readBlock } from "./framed-block.js";
+import { Block } from "./block.js";
+import { toSafeNumber } from "./varint.js";
 
 /** Anything we'll accept as a key on the input side of public methods. */
 export type KeyInput = Buffer | Uint8Array | string;

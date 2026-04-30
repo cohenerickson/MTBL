@@ -1,0 +1,41 @@
+{
+  "name": "mtbl",
+  "version": "0.1.0",
+  "description": "Pure-TS streaming reader for mtbl (Sorted String Table) files. Memory-efficient enough for files in the hundreds of GB.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "tsc && node --test --import tsx test/reader.test.ts",
+    "test:dev": "node --test --import tsx test/reader.test.ts",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "snappy": "*",
+    "lz4-napi": "*"
+  },
+  "peerDependenciesMeta": {
+    "snappy": {
+      "optional": true
+    },
+    "lz4-napi": {
+      "optional": true
+    }
+  }
+}
